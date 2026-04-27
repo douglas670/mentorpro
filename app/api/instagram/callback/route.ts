@@ -25,8 +25,11 @@ export async function GET(req: Request) {
     const longToken = await getLongLivedToken(shortToken);
     const ig = await findInstagramAccount(longToken);
 
-    if (!ig) {
-      return NextResponse.redirect(new URL('/?ig_error=no_business_account', url.origin));
+    if (!ig.ok) {
+      const detail = ig.reason === 'no_pages'
+        ? 'no_pages'
+        : `pages_without_instagram:${ig.pages.map(p => p.name).join('|')}`;
+      return NextResponse.redirect(new URL(`/?ig_error=${encodeURIComponent(detail)}`, url.origin));
     }
 
     const cookieOpts = {

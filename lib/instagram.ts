@@ -58,19 +58,30 @@ type Page = {
   instagram_business_account?: { id: string };
 };
 
-export async function findInstagramAccount(userToken: string): Promise<{
-  igUserId: string;
-  pageAccessToken: string;
-  pageName: string;
-} | null> {
+export type FindInstagramResult =
+  | { ok: true; igUserId: string; pageAccessToken: string; pageName: string }
+  | { ok: false; reason: 'no_pages' | 'pages_without_instagram'; pages: { id: string; name: string }[] };
+
+export async function findInstagramAccount(userToken: string): Promise<FindInstagramResult> {
   const res = await fetch(
     `${GRAPH_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userToken}`
   );
   if (!res.ok) throw new Error(`me/accounts failed: ${await res.text()}`);
   const json = (await res.json()) as { data: Page[] };
-  const page = json.data.find(p => p.instagram_business_account?.id);
-  if (!page || !page.instagram_business_account) return null;
+  const pages = json.data ?? [];
+  if (pages.length === 0) {
+    return { ok: false, reason: 'no_pages', pages: [] };
+  }
+  const page = pages.find(p => p.instagram_business_account?.id);
+  if (!page || !page.instagram_business_account) {
+    return {
+      ok: false,
+      reason: 'pages_without_instagram',
+      pages: pages.map(p => ({ id: p.id, name: p.name })),
+    };
+  }
   return {
+    ok: true,
     igUserId: page.instagram_business_account.id,
     pageAccessToken: page.access_token,
     pageName: page.name,
