@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { InstagramProfile, AccountInsights, TopPost } from '@/lib/instagram';
+import type { SessionUser } from '@/lib/auth';
 
 type TabId = 'home' | 'content' | 'instagram' | 'mentorship' | 'profile';
 
@@ -19,24 +20,69 @@ function formatNumber(n: number): string {
   return String(n);
 }
 
+const ACCENT = '#3B82F6';
+const ACCENT_DARK = '#1E40AF';
+
+function LoginScreen({ authError }: { authError: string | null }) {
+  return (
+    <div style={{ background: '#000', color: '#fff', minHeight: '100vh', fontFamily: 'system-ui, -apple-system, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center' }}>
+      <div style={{ maxWidth: '400px', width: '100%' }}>
+        <h1 style={{ fontSize: '64px', margin: '0 0 16px 0' }}>🚀</h1>
+        <h2 style={{ fontSize: '36px', margin: '0 0 8px 0', fontWeight: 900 }}>Mentor Pro</h2>
+        <p style={{ fontSize: '14px', opacity: 0.7, marginBottom: '40px' }}>Mentoria para Empresários</p>
+        {authError && (
+          <div style={{ background: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgb(239, 68, 68)', borderRadius: '12px', padding: '12px', marginBottom: '20px' }}>
+            <p style={{ color: '#fca5a5', fontSize: '12px', fontWeight: 'bold', margin: 0 }}>⚠ {authError}</p>
+          </div>
+        )}
+        <a href="/api/auth/google" style={{ textDecoration: 'none', display: 'block' }}>
+          <button style={{ width: '100%', padding: '14px', background: '#fff', color: '#000', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/></svg>
+            Entrar com Google
+          </button>
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export default function MentorProApp() {
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [igData, setIgData] = useState<IgData | null>(null);
   const [igLoading, setIgLoading] = useState(true);
   const [igError, setIgError] = useState<string | null>(null);
 
-  const ACCENT = '#3B82F6';
-  const ACCENT_DARK = '#1E40AF';
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const err = params.get('ig_error');
-    if (err) setIgError(decodeURIComponent(err));
-    if (err || params.get('ig_connected')) {
+    const igErr = params.get('ig_error');
+    if (igErr) setIgError(decodeURIComponent(igErr));
+    const authErr = params.get('auth_error');
+    if (authErr) setAuthError(decodeURIComponent(authErr));
+    if (igErr || authErr || params.get('ig_connected') || params.get('logged_in')) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-    fetchIg();
+    fetchAuth();
   }, []);
+
+  async function fetchAuth() {
+    setAuthLoading(true);
+    try {
+      const res = await fetch('/api/auth/me');
+      if (res.ok) {
+        const data = (await res.json()) as { user: SessionUser };
+        setUser(data.user);
+        fetchIg();
+      } else {
+        setUser(null);
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  }
 
   async function fetchIg() {
     setIgLoading(true);
@@ -62,14 +108,34 @@ export default function MentorProApp() {
     setIgData(null);
   }
 
+  async function handleLogout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    setUser(null);
+    setIgData(null);
+  }
+
+  if (authLoading) {
+    return (
+      <div style={{ background: '#000', color: '#9ca3af', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'system-ui' }}>
+        ⏳ Carregando...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen authError={authError} />;
+  }
+
   const instagramConnected = !!igData;
+  const displayName = igData?.profile.name || user.name || user.email;
+  const displayPicture = igData?.profile.profile_picture_url || user.picture;
 
   const HomeScreen = () => (
     <div style={{ paddingTop: '20px', paddingBottom: '100px' }}>
       <div style={{ marginBottom: '30px' }}>
         <p style={{ color: '#9ca3af', fontSize: '14px' }}>Bem-vindo de volta,</p>
         <h1 style={{ fontSize: '28px', fontWeight: 900, margin: '10px 0 0 0' }}>
-          {igData?.profile.name || igData?.profile.username || 'Carlos Silva'} 👋
+          {displayName} 👋
         </h1>
       </div>
 
@@ -269,42 +335,36 @@ export default function MentorProApp() {
   );
 
   const ProfileScreen = () => {
-    const initials = igData?.profile.name
-      ? igData.profile.name.split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase()
-      : 'CS';
+    const initials = (user.name || user.email).split(' ').map(s => s[0]).slice(0, 2).join('').toUpperCase();
     return (
       <div style={{ paddingTop: '20px', paddingBottom: '100px' }}>
         <h1 style={{ fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '20px', textAlign: 'center' }}>Perfil</h1>
 
         <div style={{ background: '#18181b', borderRadius: '16px', padding: '20px', border: '1px solid #27272a', textAlign: 'center', marginBottom: '20px' }}>
-          {igData?.profile.profile_picture_url ? (
+          {displayPicture ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={igData.profile.profile_picture_url} alt="" style={{ width: '80px', height: '80px', margin: '0 auto 15px', borderRadius: '9999px', objectFit: 'cover', display: 'block' }} />
+            <img src={displayPicture} alt="" style={{ width: '80px', height: '80px', margin: '0 auto 15px', borderRadius: '9999px', objectFit: 'cover', display: 'block' }} />
           ) : (
             <div style={{ width: '80px', height: '80px', margin: '0 auto 15px', borderRadius: '9999px', background: `linear-gradient(135deg, ${ACCENT} 0%, ${ACCENT_DARK} 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 'bold', color: '#fff' }}>{initials}</div>
           )}
-          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', margin: '0 0 5px 0' }}>{igData?.profile.name || 'Carlos Silva'}</h2>
-          <p style={{ color: '#9ca3af', margin: '0 0 15px 0' }}>{igData ? `@${igData.profile.username}` : 'CEO • Empresa Tech'}</p>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 12px', background: '#000', border: '1px solid #27272a', borderRadius: '9999px' }}>
-            <span style={{ fontSize: '12px' }}>⭐</span>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff' }}>Plano Premium</span>
-          </div>
+          <h2 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', margin: '0 0 5px 0' }}>{user.name || user.email}</h2>
+          <p style={{ color: '#9ca3af', margin: '0 0 15px 0' }}>{igData ? `@${igData.profile.username}` : user.email}</p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-          <div style={{ background: '#18181b', borderRadius: '16px', padding: '15px', textAlign: 'center', border: '1px solid #27272a' }}>
-            <p style={{ fontSize: '22px', fontWeight: 900, color: ACCENT, margin: '0 0 5px 0' }}>62%</p>
-            <p style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 'bold', margin: 0 }}>Jornada</p>
+        {igData && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px', marginBottom: '20px' }}>
+            <div style={{ background: '#18181b', borderRadius: '16px', padding: '15px', textAlign: 'center', border: '1px solid #27272a' }}>
+              <p style={{ fontSize: '22px', fontWeight: 900, color: ACCENT, margin: '0 0 5px 0' }}>{formatNumber(igData.profile.followers_count)}</p>
+              <p style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 'bold', margin: 0 }}>Seguidores</p>
+            </div>
+            <div style={{ background: '#18181b', borderRadius: '16px', padding: '15px', textAlign: 'center', border: '1px solid #27272a' }}>
+              <p style={{ fontSize: '22px', fontWeight: 900, color: ACCENT, margin: '0 0 5px 0' }}>{formatNumber(igData.profile.media_count)}</p>
+              <p style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 'bold', margin: 0 }}>Posts IG</p>
+            </div>
           </div>
-          <div style={{ background: '#18181b', borderRadius: '16px', padding: '15px', textAlign: 'center', border: '1px solid #27272a' }}>
-            <p style={{ fontSize: '22px', fontWeight: 900, color: ACCENT, margin: '0 0 5px 0' }}>24</p>
-            <p style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 'bold', margin: 0 }}>Sessões</p>
-          </div>
-          <div style={{ background: '#18181b', borderRadius: '16px', padding: '15px', textAlign: 'center', border: '1px solid #27272a' }}>
-            <p style={{ fontSize: '22px', fontWeight: 900, color: ACCENT, margin: '0 0 5px 0' }}>{igData ? formatNumber(igData.profile.media_count) : '47'}</p>
-            <p style={{ fontSize: '10px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 'bold', margin: 0 }}>{igData ? 'Posts IG' : 'Conteúdos'}</p>
-          </div>
-        </div>
+        )}
+
+        <button onClick={handleLogout} style={{ width: '100%', padding: '12px', background: 'rgba(239, 68, 68, 0.2)', color: '#f87171', border: '1px solid rgb(153, 27, 27)', borderRadius: '8px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>Sair</button>
       </div>
     );
   };
