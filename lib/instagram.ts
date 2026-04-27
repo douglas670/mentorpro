@@ -7,7 +7,6 @@ export const SCOPES = [
   'pages_read_engagement',
   'business_management',
   'instagram_basic',
-  'instagram_manage_insights',
 ].join(',');
 
 export function buildAuthUrl(state: string): string {
