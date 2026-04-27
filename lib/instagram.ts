@@ -1,12 +1,11 @@
 const GRAPH_VERSION = 'v21.0';
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
-const FB_OAUTH_BASE = `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth`;
+const IG_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
+const IG_OAUTH_BASE = 'https://www.instagram.com/oauth/authorize';
+const IG_TOKEN_URL = 'https://api.instagram.com/oauth/access_token';
+const IG_LONG_LIVED_URL = 'https://graph.instagram.com/access_token';
 
 export const SCOPES = [
-  'pages_show_list',
-  'pages_read_engagement',
-  'business_management',
-  'instagram_basic',
+  'instagram_business_basic',
 ].join(',');
 
 export function buildAuthUrl(state: string): string {
@@ -15,77 +14,39 @@ export function buildAuthUrl(state: string): string {
     redirect_uri: process.env.META_REDIRECT_URI!,
     state,
     response_type: 'code',
+    scope: SCOPES,
   });
-  const configId = process.env.META_CONFIG_ID;
-  if (configId) {
-    params.set('config_id', configId);
-  } else {
-    params.set('scope', SCOPES);
-  }
-  return `${FB_OAUTH_BASE}?${params.toString()}`;
+  return `${IG_OAUTH_BASE}?${params.toString()}`;
 }
 
-export async function exchangeCodeForToken(code: string): Promise<string> {
-  const params = new URLSearchParams({
+export async function exchangeCodeForToken(code: string): Promise<{ accessToken: string; userId: string }> {
+  const body = new URLSearchParams({
     client_id: process.env.META_APP_ID!,
     client_secret: process.env.META_APP_SECRET!,
+    grant_type: 'authorization_code',
     redirect_uri: process.env.META_REDIRECT_URI!,
     code,
   });
-  const res = await fetch(`${GRAPH_BASE}/oauth/access_token?${params.toString()}`);
+  const res = await fetch(IG_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
   if (!res.ok) throw new Error(`token exchange failed: ${await res.text()}`);
-  const json = (await res.json()) as { access_token: string };
-  return json.access_token;
+  const json = (await res.json()) as { access_token: string; user_id: number | string };
+  return { accessToken: json.access_token, userId: String(json.user_id) };
 }
 
 export async function getLongLivedToken(shortToken: string): Promise<string> {
   const params = new URLSearchParams({
-    grant_type: 'fb_exchange_token',
-    client_id: process.env.META_APP_ID!,
+    grant_type: 'ig_exchange_token',
     client_secret: process.env.META_APP_SECRET!,
-    fb_exchange_token: shortToken,
+    access_token: shortToken,
   });
-  const res = await fetch(`${GRAPH_BASE}/oauth/access_token?${params.toString()}`);
+  const res = await fetch(`${IG_LONG_LIVED_URL}?${params.toString()}`);
   if (!res.ok) throw new Error(`long-lived exchange failed: ${await res.text()}`);
   const json = (await res.json()) as { access_token: string };
   return json.access_token;
-}
-
-type Page = {
-  id: string;
-  name: string;
-  access_token: string;
-  instagram_business_account?: { id: string };
-};
-
-export type FindInstagramResult =
-  | { ok: true; igUserId: string; pageAccessToken: string; pageName: string }
-  | { ok: false; reason: 'no_pages' | 'pages_without_instagram'; pages: { id: string; name: string }[] };
-
-export async function findInstagramAccount(userToken: string): Promise<FindInstagramResult> {
-  const res = await fetch(
-    `${GRAPH_BASE}/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${userToken}`
-  );
-  if (!res.ok) throw new Error(`me/accounts failed: ${await res.text()}`);
-  const json = (await res.json()) as { data: Page[] };
-  const pages = json.data ?? [];
-  if (pages.length === 0) {
-    return { ok: false, reason: 'no_pages', pages: [] };
-  }
-  const page = pages.find(p => p.instagram_business_account?.id);
-  if (!page || !page.instagram_business_account) {
-    return {
-      ok: false,
-      reason: 'pages_without_instagram',
-      pages: pages.map(p => ({ id: p.id, name: p.name })),
-    };
-  }
-  return {
-    ok: true,
-    igUserId: page.instagram_business_account.id,
-    pageAccessToken: page.access_token,
-    pageName: page.name,
-  };
 }
 
 export type InstagramProfile = {
@@ -97,11 +58,12 @@ export type InstagramProfile = {
   follows_count: number;
   media_count: number;
   profile_picture_url?: string;
+  account_type?: string;
 };
 
-export async function getProfile(igUserId: string, token: string): Promise<InstagramProfile> {
-  const fields = 'id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url';
-  const res = await fetch(`${GRAPH_BASE}/${igUserId}?fields=${fields}&access_token=${token}`);
+export async function getProfile(token: string): Promise<InstagramProfile> {
+  const fields = 'id,username,name,biography,followers_count,follows_count,media_count,profile_picture_url,account_type';
+  const res = await fetch(`${IG_GRAPH_BASE}/me?fields=${fields}&access_token=${token}`);
   if (!res.ok) throw new Error(`getProfile failed: ${await res.text()}`);
   return (await res.json()) as InstagramProfile;
 }
@@ -112,10 +74,10 @@ export type AccountInsights = {
   profile_views: number;
 };
 
-export async function getAccountInsights(igUserId: string, token: string): Promise<AccountInsights> {
+export async function getAccountInsights(token: string): Promise<AccountInsights> {
   const metrics = 'reach,impressions,profile_views';
   const res = await fetch(
-    `${GRAPH_BASE}/${igUserId}/insights?metric=${metrics}&period=days_28&access_token=${token}`
+    `${IG_GRAPH_BASE}/me/insights?metric=${metrics}&period=days_28&access_token=${token}`
   );
   if (!res.ok) {
     return { reach: 0, impressions: 0, profile_views: 0 };
@@ -144,10 +106,10 @@ export type TopPost = {
   comments_count: number;
 };
 
-export async function getTopPosts(igUserId: string, token: string, limit = 3): Promise<TopPost[]> {
+export async function getTopPosts(token: string, limit = 3): Promise<TopPost[]> {
   const fields = 'id,caption,permalink,thumbnail_url,media_url,media_type,timestamp,like_count,comments_count';
   const res = await fetch(
-    `${GRAPH_BASE}/${igUserId}/media?fields=${fields}&limit=25&access_token=${token}`
+    `${IG_GRAPH_BASE}/me/media?fields=${fields}&limit=25&access_token=${token}`
   );
   if (!res.ok) throw new Error(`getTopPosts failed: ${await res.text()}`);
   const json = (await res.json()) as { data: TopPost[] };

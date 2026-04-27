@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { exchangeCodeForToken, getLongLivedToken, findInstagramAccount } from '@/lib/instagram';
+import { exchangeCodeForToken, getLongLivedToken } from '@/lib/instagram';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -21,16 +21,8 @@ export async function GET(req: Request) {
   cookieStore.delete('ig_oauth_state');
 
   try {
-    const shortToken = await exchangeCodeForToken(code);
+    const { accessToken: shortToken, userId } = await exchangeCodeForToken(code);
     const longToken = await getLongLivedToken(shortToken);
-    const ig = await findInstagramAccount(longToken);
-
-    if (!ig.ok) {
-      const detail = ig.reason === 'no_pages'
-        ? 'no_pages'
-        : `pages_without_instagram:${ig.pages.map(p => p.name).join('|')}`;
-      return NextResponse.redirect(new URL(`/?ig_error=${encodeURIComponent(detail)}`, url.origin));
-    }
 
     const cookieOpts = {
       httpOnly: true,
@@ -40,8 +32,8 @@ export async function GET(req: Request) {
       maxAge: 60 * 60 * 24 * 50,
     };
 
-    cookieStore.set('ig_user_id', ig.igUserId, cookieOpts);
-    cookieStore.set('ig_page_token', ig.pageAccessToken, cookieOpts);
+    cookieStore.set('ig_user_id', userId, cookieOpts);
+    cookieStore.set('ig_access_token', longToken, cookieOpts);
 
     return NextResponse.redirect(new URL('/?ig_connected=1', url.origin));
   } catch (e) {

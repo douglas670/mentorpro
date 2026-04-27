@@ -4,18 +4,17 @@ import { getProfile, getAccountInsights, getTopPosts } from '@/lib/instagram';
 
 export async function GET() {
   const cookieStore = await cookies();
-  const igUserId = cookieStore.get('ig_user_id')?.value;
-  const token = cookieStore.get('ig_page_token')?.value;
+  const token = cookieStore.get('ig_access_token')?.value;
 
-  if (!igUserId || !token) {
+  if (!token) {
     return NextResponse.json({ connected: false }, { status: 401 });
   }
 
   try {
     const [profile, insights, topPosts] = await Promise.all([
-      getProfile(igUserId, token),
-      getAccountInsights(igUserId, token),
-      getTopPosts(igUserId, token),
+      getProfile(token),
+      getAccountInsights(token),
+      getTopPosts(token),
     ]);
 
     const engagementRate =
