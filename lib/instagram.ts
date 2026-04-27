@@ -6,7 +6,7 @@ export const SCOPES = [
   'pages_show_list',
   'pages_read_engagement',
   'business_management',
-  'instagram_business_basic',
+  'instagram_basic',
 ].join(',');
 
 export function buildAuthUrl(state: string): string {
@@ -14,9 +14,14 @@ export function buildAuthUrl(state: string): string {
     client_id: process.env.META_APP_ID!,
     redirect_uri: process.env.META_REDIRECT_URI!,
     state,
-    scope: SCOPES,
     response_type: 'code',
   });
+  const configId = process.env.META_CONFIG_ID;
+  if (configId) {
+    params.set('config_id', configId);
+  } else {
+    params.set('scope', SCOPES);
+  }
   return `${FB_OAUTH_BASE}?${params.toString()}`;
 }
 
