@@ -10,7 +10,7 @@ export const SCOPES = [
 
 export function buildAuthUrl(state: string): string {
   const params = new URLSearchParams({
-    client_id: process.env.META_APP_ID!,
+    client_id: process.env.INSTAGRAM_APP_ID!,
     redirect_uri: process.env.META_REDIRECT_URI!,
     state,
     response_type: 'code',
@@ -21,8 +21,8 @@ export function buildAuthUrl(state: string): string {
 
 export async function exchangeCodeForToken(code: string): Promise<{ accessToken: string; userId: string }> {
   const body = new URLSearchParams({
-    client_id: process.env.META_APP_ID!,
-    client_secret: process.env.META_APP_SECRET!,
+    client_id: process.env.INSTAGRAM_APP_ID!,
+    client_secret: process.env.INSTAGRAM_APP_SECRET!,
     grant_type: 'authorization_code',
     redirect_uri: process.env.META_REDIRECT_URI!,
     code,
@@ -40,7 +40,7 @@ export async function exchangeCodeForToken(code: string): Promise<{ accessToken:
 export async function getLongLivedToken(shortToken: string): Promise<string> {
   const params = new URLSearchParams({
     grant_type: 'ig_exchange_token',
-    client_secret: process.env.META_APP_SECRET!,
+    client_secret: process.env.INSTAGRAM_APP_SECRET!,
     access_token: shortToken,
   });
   const res = await fetch(`${IG_LONG_LIVED_URL}?${params.toString()}`);
