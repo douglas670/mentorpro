@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User = mentor (autenticado via Google OAuth manual)
+// `sub` é o Google sub ID, fonte de identidade
+model User {
+  id            String    @id @default(cuid())
+  sub           String    @unique // Google sub
+  email         String    @unique
+  nome          String?
+  avatar        String?
+  telefone      String?
+  bio           String?
+  especialidades String[] @default([])
+
+  // Instagram connection (era cookie, agora persiste)
+  igUserId      String?
+  igAccessToken String?
+  igUsername    String?
+  igConnectedAt DateTime?
+
+  mentorados    Mentorado[]
+  metas         Meta[]
+  reunioes      Reuniao[]
+  recursos      Recurso[]
+  conversas     Conversa[]
+  mensagensEnviadas Mensagem[] @relation("MensagemRemetente")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Mentorado {
+  id                     String    @id @default(cuid())
+  mentorId               String
+  mentor                 User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  nome                   String
+  email                  String
+  avatar                 String?
+  telefone               String?
+  especialidade          String
+  areasDeDesenvolvimento String[]  @default([])
+  status                 String    @default("ativo") // ativo, pausa, concluido
+  dataInicio             DateTime  @default(now())
+  progresso              Int       @default(0)
+  notas                  String?
+
+  metas                  Meta[]
+  reunioes               Reuniao[]
+  conversas              Conversa[]
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([mentorId])
+}
+
+model Meta {
+  id              String    @id @default(cuid())
+  mentorId        String
+  mentor          User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  mentoradoId     String
+  mentorado       Mentorado @relation(fields: [mentoradoId], references: [id], onDelete: Cascade)
+
+  titulo          String
+  descricao       String?
+  categoria       String    // profissional, pessoal, desenvolvimento
+  metricaSucesso  String?
+  dataInicio      DateTime
+  dataFim         DateTime
+  prioridade      String    // alta, media, baixa
+  progresso       Int       @default(0)
+  status          String    @default("nao-iniciada") // nao-iniciada, em-progresso, concluida, atrasada
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([mentorId])
+  @@index([mentoradoId])
+}
+
+model Reuniao {
+  id                    String    @id @default(cuid())
+  mentorId              String
+  mentor                User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  mentoradoId           String
+  mentorado             Mentorado @relation(fields: [mentoradoId], references: [id], onDelete: Cascade)
+
+  titulo                String
+  descricao             String?
+  dataHora              DateTime
+  duracao               Int       // minutos
+  tipo                  String    // one-on-one, grupo, workshop, follow-up
+  linkVideoconferencia  String?
+  status                String    @default("agendada") // agendada, concluida, cancelada
+  notasPreReuniao       String?
+  notas                 String?
+  rating                Int?      // 1-5
+
+  // Notas estruturadas
+  assuntos              String[]  @default([])
+  acoesAcordadas        String[]  @default([])
+  proximosPassos        String[]  @default([])
+  feedbackMentorado     String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([mentorId])
+  @@index([mentoradoId])
+  @@index([dataHora])
+}
+
+model Recurso {
+  id              String    @id @default(cuid())
+  mentorId        String
+  mentor          User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  titulo          String
+  descricao       String?
+  tipo            String    // artigo, video, livro, template, curso
+  categoria       String
+  tags            String[]  @default([])
+  url             String
+  favorito        Boolean   @default(false)
+  compartilhadoCom String[] @default([]) // mentoradoIds
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([mentorId])
+}
+
+model Conversa {
+  id              String    @id @default(cuid())
+  mentorId        String
+  mentor          User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  mentoradoId     String
+  mentorado       Mentorado @relation(fields: [mentoradoId], references: [id], onDelete: Cascade)
+
+  mensagens       Mensagem[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([mentorId, mentoradoId])
+  @@index([mentorId])
+}
+
+model Mensagem {
+  id              String    @id @default(cuid())
+  conversaId      String
+  conversa        Conversa  @relation(fields: [conversaId], references: [id], onDelete: Cascade)
+  remetenteId     String    // user.id se mentor; mentoradoId se mentorado
+  remetenteTipo   String    // 'mentor' ou 'mentorado'
+
+  conteudo        String
+  arquivos        String[]  @default([])
+  lido            Boolean   @default(false)
+
+  // Quando remetente é mentor, vincula User
+  remetenteUser   User?     @relation("MensagemRemetente", fields: [remetenteId], references: [id], onDelete: SetNull)
+
+  createdAt       DateTime  @default(now())
+
+  @@index([conversaId])
+}
