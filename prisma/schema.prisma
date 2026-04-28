@@ -41,16 +41,63 @@ model Mentorado {
   mentorId               String
   mentor                 User      @relation(fields: [mentorId], references: [id], onDelete: Cascade)
 
+  // Identificação
   nome                   String
-  email                  String
+  email                  String?
   avatar                 String?
   telefone               String?
-  especialidade          String
+  aniversario            String?
+
+  // Endereço
+  endereco               String?
+  numero                 String?
+  complemento            String?
+  bairro                 String?
+  cidade                 String?
+  estado                 String?
+  cep                    String?
+  pais                   String?
+
+  // Empresa
+  empresaNome            String?
+  empresaTempo           String?
+  faturamentoMensal      String?
+  funcionarios           String?
+  produtoServico         String?
+  temProdutoDigital      String?
+  comoGeraClientes       String?
+  instagram              String?
+  youtube                String?
+  site                   String?
+  usaIA                  String?
+
+  // Diagnóstico (campos da aplicação MDX)
+  dificuldadeNegocio     String?
+  dificuldadeLeads       String?
+  maiorProblema          String?
+  impedeEscalar          String?
+  ondeQuerChegar         String?
+  expectativaMDX         String?
+  faturamentoIdeal       String?
+  diferencial            String?
+  valorInegociavel       String?
+
+  // Aplicação MDX (origem)
+  pontuacao              Int       @default(0)
+  dataAplicacao          DateTime?
+  aplicacaoId            String?   @unique
+
+  // Mentoria
+  especialidade          String?
   areasDeDesenvolvimento String[]  @default([])
-  status                 String    @default("ativo") // ativo, pausa, concluido
-  dataInicio             DateTime  @default(now())
-  progresso              Int       @default(0)
+  status                 String    @default("aplicacao") // aplicacao, ativo, pausa, concluido, incompleto
+  dataInicio             DateTime?
+  dataProximaReuniao     DateTime?
+  progresso              Int?
   notas                  String?
+
+  // Convite (link único pro mentorado entrar na plataforma)
+  inviteToken            String    @unique @default(cuid())
 
   metas                  Meta[]
   reunioes               Reuniao[]

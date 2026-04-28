@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { exchangeGoogleCodeForUser, encodeSession, SESSION_CONFIG } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -23,6 +24,18 @@ export async function GET(req: Request) {
 
   try {
     const user = await exchangeGoogleCodeForUser(code, baseUrl);
+
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: { sub: user.sub, nome: user.name ?? undefined, avatar: user.picture ?? undefined },
+      create: {
+        sub: user.sub,
+        email: user.email,
+        nome: user.name ?? null,
+        avatar: user.picture ?? null,
+      },
+    });
+
     const session = encodeSession(user);
 
     cookieStore.set(SESSION_CONFIG.cookieName, session, {
