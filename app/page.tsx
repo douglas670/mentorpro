@@ -605,17 +605,6 @@ export default function MentorProApp() {
         </div>
       </main>
 
-      <style jsx global>{`
-        @media (max-width: 768px) {
-          .mp-desktop-sidebar { display: none !important; }
-          .mp-mobile-header { display: flex !important; }
-        }
-        @media (min-width: 769px) {
-          .mp-mobile-sidebar { display: none !important; }
-        }
-        input::placeholder { color: ${COLORS.textMuted}; }
-        input:focus { border-color: ${COLORS.accent} !important; }
-      `}</style>
     </div>
   );
 }
